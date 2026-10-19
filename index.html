@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ökostrom-Anteil</title>
+<style>
+  :root {
+    --text: #1d2a3a;
+    --muted: #6b7785;
+    --card: #ffffff;
+    --border: #e3e8ee;
+    --gruen: #2e9e5b;
+    --gelb: #e0a800;
+    --rot: #d64545;
+  }
+  html, body { margin: 0; background: transparent; }
+  body {
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    color: var(--text);
+    display: flex; justify-content: center; padding: 8px;
+  }
+  .karte {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 22px 26px;
+    width: 100%; max-width: 340px;
+    box-sizing: border-box;
+    text-align: center;
+  }
+  .titel { font-size: 15px; color: var(--muted); margin: 0 0 10px; }
+  .wert {
+    font-size: 54px; font-weight: 700; line-height: 1;
+    display: inline-flex; align-items: center; gap: 12px;
+  }
+  .punkt { width: 18px; height: 18px; border-radius: 50%; background: var(--border); }
+  .status { font-size: 15px; font-weight: 600; margin: 12px 0 4px; }
+  .stand, .quelle { font-size: 12px; color: var(--muted); margin: 4px 0 0; }
+  .quelle a { color: inherit; }
+</style>
+</head>
+<body>
+  <div class="karte">
+    <p class="titel">Ökostrom-Anteil im Stromnetz – jetzt</p>
+    <div class="wert"><span class="punkt" id="punkt"></span><span id="anteil">–</span></div>
+    <p class="status" id="status">Daten werden geladen …</p>
+    <p class="stand" id="stand">Deutschland</p>
+    <p class="quelle">Quelle: <a href="https://www.energy-charts.info" target="_blank" rel="noopener">Energy-Charts (Fraunhofer ISE)</a></p>
+  </div>
+
+<script>
+  // 1. Versuch: live direkt von der API. 2. Versuch: die von GitHub gespeicherte Kopie.
+  var QUELLEN = [
+    "https://api.energy-charts.info/signal?country=de",
+    "signal.json?t=" + Date.now()
+  ];
+
+  var TEXTE = {
+    "2":  { text: "Viel Ökostrom – guter Zeitpunkt zum Verbrauchen", farbe: "var(--gruen)" },
+    "1":  { text: "Mittlerer Ökostrom-Anteil", farbe: "var(--gelb)" },
+    "0":  { text: "Wenig Ökostrom – Verbrauch eher verschieben", farbe: "var(--rot)" },
+    "-1": { text: "Netz stark ausgelastet", farbe: "var(--rot)" }
+  };
+
+  function aktuellerWert(d) {
+    var jetzt = Date.now() / 1000, idx = -1;
+    for (var i = 0; i < d.unix_seconds.length; i++) {
+      if (d.unix_seconds[i] <= jetzt && d.share[i] != null) idx = i;
+    }
+    if (idx === -1) throw new Error("Kein aktueller Wert");
+    return { zeit: d.unix_seconds[idx], anteil: d.share[idx], signal: d.signal ? d.signal[idx] : null };
+  }
+
+  function anzeigen(w) {
+    document.getElementById("anteil").textContent = Math.round(w.anteil) + " %";
+    var t = TEXTE[String(w.signal)];
+    if (t) {
+      document.getElementById("status").textContent = t.text;
+      document.getElementById("punkt").style.background = t.farbe;
+    } else {
+      document.getElementById("status").textContent = "";
+    }
+    var uhr = new Date(w.zeit * 1000).toLocaleTimeString("de-DE", {
+      hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin"
+    });
+    document.getElementById("stand").textContent = "Deutschland · Stand " + uhr + " Uhr";
+  }
+
+  function laden(i) {
+    if (i >= QUELLEN.length) {
+      document.getElementById("status").textContent = "Daten gerade nicht verfügbar";
+      return;
+    }
+    fetch(QUELLEN[i])
+      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then(function (d) { anzeigen(aktuellerWert(d)); })
+      .catch(function () { laden(i + 1); });
+  }
+
+  laden(0);
+  setInterval(function () { QUELLEN[1] = "signal.json?t=" + Date.now(); laden(0); }, 15 * 60 * 1000);
+</script>
+</body>
+</html>
